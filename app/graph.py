@@ -3,6 +3,19 @@ from app.state import TravelState
 from app.agents.research import run_research
 from app.agents.planner import run_planner, run_revision
 
+RESEARCH_KEYWORDS = {
+    "research", "more info", "more information", "look up", "find out",
+    "search", "wrong destination", "different place", "weather", "safety",
+    "currency", "cost of living", "attractions", "not accurate",
+}
+
+
+def _needs_reresearch(feedback: str) -> bool:
+    if not feedback:
+        return False
+    feedback_lower = feedback.lower()
+    return any(kw in feedback_lower for kw in RESEARCH_KEYWORDS)
+
 
 def validate_request(state: TravelState) -> dict:
     request = state.get("request")
@@ -65,8 +78,16 @@ def _route_after_review(state: TravelState) -> str:
     if action == "approve":
         return "finalize"
     if action in ("reject", "modify"):
+        if _needs_reresearch(state.get("user_feedback", "")):
+            return "research"
         return "revise"
     return END
+
+
+def _route_after_revision(state: TravelState) -> str:
+    if state.get("workflow_stage") == "failed":
+        return END
+    return "hitl_review"
 
 
 def build_graph() -> StateGraph:
@@ -80,29 +101,57 @@ def build_graph() -> StateGraph:
     graph.add_node("finalize", finalize_node)
 
     graph.set_entry_point("validate")
-    graph.add_conditional_edges("validate", _route_after_validation, {"research": "research", END: END})
+    graph.add_conditional_edges(
+        "validate", _route_after_validation,
+        {"research": "research", END: END},
+    )
     graph.add_edge("research", "plan")
     graph.add_edge("plan", "hitl_review")
     graph.add_edge("hitl_review", END)
-    graph.add_conditional_edges("revise", lambda s: "hitl_review" if s.get("workflow_stage") != "failed" else END)
+    graph.add_conditional_edges(
+        "revise", _route_after_revision,
+        {"hitl_review": "hitl_review", END: END},
+    )
+    graph.add_edge("finalize", END)
+
+    return graph.compile()
+
+
+def build_review_graph() -> StateGraph:
+    """Separate graph for post-review workflow, reusing the same nodes."""
+    graph = StateGraph(TravelState)
+
+    graph.add_node("route_review", hitl_review_node)
+    graph.add_node("research", research_node)
+    graph.add_node("plan", planner_node)
+    graph.add_node("revise", revision_node)
+    graph.add_node("finalize", finalize_node)
+    graph.add_node("hitl_review", hitl_review_node)
+
+    graph.set_entry_point("route_review")
+    graph.add_conditional_edges(
+        "route_review", _route_after_review,
+        {"finalize": "finalize", "research": "research", "revise": "revise", END: END},
+    )
+    graph.add_edge("research", "plan")
+    graph.add_edge("plan", "hitl_review")
+    graph.add_edge("hitl_review", END)
+    graph.add_conditional_edges(
+        "revise", _route_after_revision,
+        {"hitl_review": "hitl_review", END: END},
+    )
     graph.add_edge("finalize", END)
 
     return graph.compile()
 
 
 def run_initial_workflow(state: TravelState) -> TravelState:
-    """Run the graph from validate through to HITL pause."""
+    """Run the graph from validate through research -> plan -> HITL pause."""
     graph = build_graph()
-    result = graph.invoke(state)
-    return result
+    return graph.invoke(state)
 
 
 def run_review_workflow(state: TravelState) -> TravelState:
-    """Run post-review: either finalize or revise then pause again."""
-    action = state.get("review_action")
-    if action == "approve":
-        return finalize_node(state)
-    elif action in ("reject", "modify"):
-        result = revision_node(state)
-        return result
-    return state
+    """Run post-review graph: finalize, re-research, or revise based on feedback."""
+    graph = build_review_graph()
+    return graph.invoke(state)

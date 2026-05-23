@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from typing import Optional
 from datetime import date
 from enum import Enum
@@ -14,11 +14,13 @@ class TravelRequest(BaseModel):
     interests: list[str] = Field(default_factory=list)
     num_travelers: int = Field(default=1, ge=1, le=20)
 
-    def model_post_init(self, __context):
+    @model_validator(mode="after")
+    def validate_dates_and_budget(self):
         if self.end_date <= self.start_date:
             raise ValueError("end_date must be after start_date")
         if self.budget_max < self.budget_min:
             raise ValueError("budget_max must be >= budget_min")
+        return self
 
 
 class ReviewAction(str, Enum):

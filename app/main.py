@@ -1,10 +1,9 @@
-import asyncio
 import uuid
 from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, BackgroundTasks
-from fastapi.responses import JSONResponse
+
 
 from app.models import (
     TravelRequest,

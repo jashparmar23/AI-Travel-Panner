@@ -1,7 +1,6 @@
 import os
-import json
 from langchain_groq import ChatGroq
-from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
 from app.tools.web_search import web_search
 from app.tools.currency import convert_currency
 
@@ -33,6 +32,25 @@ def get_research_agent():
     return llm.bind_tools(RESEARCH_TOOLS)
 
 
+def _run_agent_loop(agent, messages: list, max_iterations: int = 6) -> str:
+    tool_map = {t.name: t for t in RESEARCH_TOOLS}
+
+    for _ in range(max_iterations):
+        response = agent.invoke(messages)
+        messages.append(response)
+
+        if not response.tool_calls:
+            break
+
+        for tc in response.tool_calls:
+            tool_fn = tool_map.get(tc["name"])
+            if tool_fn:
+                result = tool_fn.invoke(tc["args"])
+                messages.append(ToolMessage(content=str(result), tool_call_id=tc["id"]))
+
+    return messages[-1].content if hasattr(messages[-1], "content") else ""
+
+
 def run_research(state: dict) -> dict:
     request = state["request"]
     agent = get_research_agent()
@@ -48,23 +66,5 @@ def run_research(state: dict) -> dict:
     )
 
     messages = [SystemMessage(content=SYSTEM_PROMPT), HumanMessage(content=prompt)]
-    tool_map = {t.name: t for t in RESEARCH_TOOLS}
-
-    for _ in range(6):
-        response = agent.invoke(messages)
-        messages.append(response)
-
-        if not response.tool_calls:
-            break
-
-        for tc in response.tool_calls:
-            tool_fn = tool_map.get(tc["name"])
-            if tool_fn:
-                result = tool_fn.invoke(tc["args"])
-                from langchain_core.messages import ToolMessage
-                messages.append(
-                    ToolMessage(content=str(result), tool_call_id=tc["id"])
-                )
-
-    final_content = messages[-1].content if hasattr(messages[-1], "content") else ""
-    return {"research_data": final_content, "workflow_stage": "planning"}
+    result = _run_agent_loop(agent, messages)
+    return {"research_data": result, "workflow_stage": "planning"}
