@@ -33,6 +33,13 @@ class ReviewRequest(BaseModel):
     action: ReviewAction
     feedback: Optional[str] = None
 
+    @model_validator(mode="after")
+    def validate_feedback_required(self):
+        if self.action in (ReviewAction.REJECT, ReviewAction.MODIFY) and not self.feedback:
+            raise ValueError("feedback is required for reject or modify actions")
+        return self
+
+
 
 class DayPlan(BaseModel):
     day: int

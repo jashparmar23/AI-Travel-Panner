@@ -143,7 +143,7 @@ def run_planner(state: dict) -> dict:
 
 def run_revision(state: dict) -> dict:
     request = state["request"]
-    feedback = state.get("user_feedback", "")
+    feedback = state.get("user_feedback") or ""
     previous = state.get("draft_itinerary", {})
     research = state.get("research_data", "")
     agent = get_planner_agent()

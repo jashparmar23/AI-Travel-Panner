@@ -1,5 +1,5 @@
 from langchain_core.tools import tool
-from math import radians, cos, sin, asin, sqrt
+
 
 CATEGORY_WEIGHTS = {
     "accommodation": 0.35,

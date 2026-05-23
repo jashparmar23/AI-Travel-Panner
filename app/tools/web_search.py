@@ -2,7 +2,6 @@ import os
 import httpx
 from langchain_core.tools import tool
 
-SERPER_API_KEY = os.getenv("SERPER_API_KEY", "")
 SERPER_URL = "https://google.serper.dev/search"
 
 
@@ -11,10 +10,11 @@ def web_search(query: str) -> str:
     """Search the web for travel destination information using Google Search.
     Use this to find attractions, local tips, safety info, weather, and seasonal details.
     """
-    if not SERPER_API_KEY:
+    api_key = os.getenv("SERPER_API_KEY", "")
+    if not api_key:
         return "Error: SERPER_API_KEY not configured"
 
-    headers = {"X-API-KEY": SERPER_API_KEY, "Content-Type": "application/json"}
+    headers = {"X-API-KEY": api_key, "Content-Type": "application/json"}
     payload = {"q": query, "num": 5}
 
     try:
