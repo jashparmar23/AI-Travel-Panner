@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi.responses import HTMLResponse
 
 
 from app.models import (
@@ -31,6 +32,17 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
 )
+
+
+@app.get("/", response_class=HTMLResponse)
+async def serve_index():
+    import os
+    file_path = os.path.join(os.path.dirname(__file__), "templates", "index.html")
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="Frontend file not found")
+    with open(file_path, "r", encoding="utf-8") as f:
+        return f.read()
+
 
 
 def _run_workflow_sync(plan_id: str):
