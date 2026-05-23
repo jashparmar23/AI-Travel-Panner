@@ -82,6 +82,15 @@ uvicorn app.main:app --reload
 
 API docs available at `http://localhost:8000/docs`
 
+### Running Tests
+
+To run the comprehensive unit test suite:
+
+```bash
+.venv\Scripts\python.exe -m unittest discover -s tests
+```
+
+
 ## API Endpoints
 
 | Method | Endpoint | Purpose | Status Codes |
